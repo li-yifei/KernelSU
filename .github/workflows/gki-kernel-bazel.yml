@@ -59,10 +59,6 @@ jobs:
   build:
     name: Build ${{ inputs.version_name }}
     runs-on: ubuntu-latest
-    env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@master
@@ -139,15 +135,12 @@ jobs:
           # python3 $KSU_ROOT/scripts/abi_gki_all.py $ABI_XML > $SYMBOL_LIST
           echo "[+] Add KernelSU symbols"
           cat $KSU_ROOT/kernel/export_symbol.txt | awk '{sub("[ \t]+","");print "  "$0}' >> $SYMBOL_LIST
-
-      - name: Setup ccache
-        if: inputs.use_cache == true
-        uses: hendrikmuhs/ccache-action@v1.2
+      - name: Mount bazel cache
+        if: ${{ inputs.use_cache }}
+        uses: actions/cache@v3
         with:
-          key: gki-kernel-aarch64-${{ inputs.version_name }}
-          max-size: 2G
-          save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-
+          path: "~/android-kernel/out/bazel/output_user_root"
+          key: bazel
       - name: Build boot.img
         working-directory: android-kernel
         run: |
@@ -155,7 +148,7 @@ jobs:
             export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
             export KSU_EXPECTED_HASH=${{ vars.EXPECTED_HASH }}
           fi
-          CCACHE="/usr/bin/ccache" tools/bazel build --config=fast //common:kernel_aarch64_dist
+          tools/bazel build --config=fast //common:kernel_aarch64_dist
       - name: Prepare artifacts
         id: prepareArtifacts
         run: |
